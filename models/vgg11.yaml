@@ -1,0 +1,27 @@
+# Ultralytics YOLOv5 🚀, AGPL-3.0 license
+
+# Parameters
+nc: 1000 # number of classes
+# YOLOv5 v6.0 backbone
+backbone:
+  # [from, number, module, args]
+  [
+    [-1, 1, VggBlock, [64]], # 0 2
+    [-1, 1, VggBlock, [128]], # 1 2
+    [-1, 2, VggBlock, [256]], # 2 3
+    [-1, 2, VggBlock, [512]], # 3 3
+    [-1, 2, VggBlock, [512]], # 4 3
+    [-1, 1, nn.AdaptiveAvgPool2d, [7]],
+    [-1, 1, nn.Flatten,[1]],
+    [-1, 1, Linear, [4096, 0.5]], # 7
+    [-1, 1, Linear, [4096, 0.5]], # 8
+    [-1, 1, nn.Linear, [1000]], # 9
+  ]
+
+## YOLOv5 v6.0 head
+# TODO 写头部函数
+head: [
+    [-1, 1, StyleTrans, [256]], # 10
+    [-1, 1, nn.Linear, [120]], # 11
+  ]
+
