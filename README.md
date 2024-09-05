@@ -15,6 +15,6 @@
 
 > todolist 4/9-5/9
 > 1. [x] rewrite utils.augmentations.py
-> 2. [] rewrite train.py
+> 2. [x] rewrite train.py
 ### reference
 - [Leon A. Gatys et.al 2016](https://cv-foundation.org/openaccess/content_cvpr_2016/papers/Gatys_Image_Style_Transfer_CVPR_2016_paper.pdf)
