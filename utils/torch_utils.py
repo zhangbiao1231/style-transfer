@@ -267,13 +267,15 @@ def smart_optimizer(model, name="Adam", lr=0.001, momentum=0.9, decay=1e-5):
         f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias'
     )
     return optimizer
-def smart_resume(ckpt, optimizer, ema=None, weights="yolov5s.pt", epochs=300, resume=True):
+def smart_resume(ckpt, optimizer, scheduler, generated_image, ema=None, weights="yolov5s.pt", epochs=300, resume=True):
     """Resumes training from a checkpoint, updating optimizer, ema, and epochs, with optional resume verification."""
     best_fitness = 0.0
     start_epoch = ckpt["epoch"] + 1
     if ckpt["optimizer"] is not None:
         optimizer.load_state_dict(ckpt["optimizer"])  # optimizer
         best_fitness = ckpt["best_fitness"]
+        scheduler.load_state_dict(ckpt["scheduler"])  # scheduler
+        generated_image = ckpt["generated_image"]
     if ema and ckpt.get("ema"):
         ema.ema.load_state_dict(ckpt["ema"].float().state_dict())  # EMA
         ema.updates = ckpt["updates"]
@@ -286,7 +288,7 @@ def smart_resume(ckpt, optimizer, ema=None, weights="yolov5s.pt", epochs=300, re
     if epochs <= start_epoch:
         LOGGER.info(f"{weights} has been trained for {start_epoch} epochs. Fine-tuning for {epochs} more epochs.")
         epochs += start_epoch  # finetune additional epochs
-    return best_fitness, start_epoch, epochs
+    return best_fitness, start_epoch, epochs, optimizer, scheduler, generated_image
 class EarlyStopping:
     # YOLOv5 simple early stopper
     def __init__(self, patience=30):
@@ -347,7 +349,7 @@ class ModelEMA:
         copy_attr(self.ema, model, include, exclude)
 class EarlyStopping:
     # YOLOv5 simple early stopper
-    def __init__(self, patience=30, min_delta=0.01):
+    def __init__(self, patience=30, min_delta=0.001):
         """Initializes simple early stopping mechanism for YOLOv5, with adjustable patience for non-improving epochs."""
         self.best_fitness = 0.0  # i.e. mAP
         self.best_epoch = 0
@@ -357,7 +359,7 @@ class EarlyStopping:
 
     def __call__(self, epoch, fitness):
         """Evaluates if training should stop based on fitness improvement and patience, returning a boolean."""
-        if fitness > self.best_fitness +self.min_delta:  # >= 0+0.01 to allow for early zero-fitness stage of training
+        if fitness < self.best_fitness - self.min_delta:  # <= 0-0.001 to allow for early zero-fitness stage of training
             self.best_epoch = epoch
             self.best_fitness = fitness
         # self.best_fitness <= fitness-self.min_delta
