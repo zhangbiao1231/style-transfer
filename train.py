@@ -73,7 +73,7 @@ def train(opt,device):
     # Directories
     wdir = save_dir / "weights"
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
-    imgdir = save_dir / "images"
+    imgdir = save_dir / "Transfer Images"
     imgdir.mkdir(parents=True, exist_ok=True)  # make dir
     last, best = wdir / "last.pt", wdir / "best.pt"
 
@@ -182,7 +182,7 @@ def train(opt,device):
         mem = "%.3gG" % (torch.cuda.memory_reserved() / 1e9 if torch.cuda.is_available() else 0)  # (GB)
         s = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{cl:>12.3g}{sl:>12.3g}{tvl:>12.3g}{total_loss:>12.3g}"
         LOGGER.info(s)
-        fitness = total_loss
+        fitness = total_loss #2.08
 
         # Scheduler
         scheduler.step()
@@ -190,6 +190,8 @@ def train(opt,device):
         # Log metrics
         if RANK in {-1, 0}:
             # Best fitness
+            if epoch ==0 :
+                best_fitness = fitness # Initialize best_fitness
             if fitness <= best_fitness - opt.min_delta:
                 best_fitness = fitness
             # Log
@@ -205,7 +207,7 @@ def train(opt,device):
             if epoch != 0 and epoch % 20 == 0:
                 img = postprocess(generated_image)
                 img.save(imgdir / f'train-{epoch}-step.jpg')
-                logger.log_images(path=imgdir, name="Transfer Image",epoch=epoch)
+                logger.log_images(path=imgdir, epoch=epoch)
 
             # Save model
             final_epoch = epoch + 1 == epochs
