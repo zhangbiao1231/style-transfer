@@ -98,7 +98,7 @@ class GenericLogger:
             for k, v in metrics.items():
                 self.tb.add_scalar(k, v, epoch)
 
-    def log_images(self, path, name="Images", epoch=0):
+    def log_images(self, path, epoch=0):
         """Logs images to all loggers with optional naming and epoch specification."""
         # files = [Path(f) for f in (files if isinstance(files, (tuple, list)) else [files])]  # to Path
         # files = [f for f in files if f.exists()]  # filter by exists

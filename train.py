@@ -90,7 +90,7 @@ def train(opt,device):
     style_path, style_img, style_img0, s1 = next(iter(style_dataset))
 
     # Model
-    pretrained = str(weights).endswith(".pth")
+    pretrained = str(weights).endswith(".pt")
     if pretrained:
         model = nn.ModuleList()
         file = Path(str(weights).strip().replace("'", ""))
@@ -108,7 +108,7 @@ def train(opt,device):
         if opt.verbose:
             LOGGER.info(model)
         file = Path(source / "content-image")
-        logger.log_images(file, name="Content Image")
+        logger.log_images(file)
         logger.log_graph(model, imgsz)  # log model
 
     # get content_Y, style_Y
@@ -117,13 +117,13 @@ def train(opt,device):
 
 
     # SynthesizedImage
-    gen_img = SynthesizedImage(content_img.shape)
-    gen_img.weight.data.copy_(content_img)
-    generated_image = gen_img()
-    # generated_image = content_img.clone().requires_grad_(True)
+    # gen_img = SynthesizedImage(content_img.shape)
+    # gen_img.weight.data.copy_(content_img)
+    # generated_image = gen_img()
+    generated_image = content_img.clone().requires_grad_(True) if not pretrained else ckpt["generated_image"] #先加载图像，
     # Optimizer
-    optimizer = torch.optim.Adam(gen_img.parameters(), lr=opt.lr)
-    # optimizer = torch.optim.Adam([generated_image], lr=opt.lr)
+    # optimizer = torch.optim.Adam(gen_img.parameters(), lr=opt.lr)
+    optimizer = torch.optim.Adam([generated_image], lr=opt.lr) # 优化器没有正确恢复
     # Scheduler
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50, 0.8)
 
@@ -139,13 +139,10 @@ def train(opt,device):
     best_fitness, start_epoch, final_epoch = 0.0, 0, None  # initialize
     if pretrained:
         if resume:
-            best_fitness, start_epoch, epochs, optimizer, scheduler, generated_image = smart_resume(ckpt, optimizer, optimizer,scheduler, generated_image,
+            best_fitness, start_epoch, epochs, optimizer, scheduler = smart_resume(ckpt, optimizer, scheduler,
                                                                                                     ema, weights, epochs, resume)
-        del ckpt, csd
-
     # Train
     t0 = time.time()
-    best_fitness = 0.0
     scaler = amp.GradScaler(enabled=cuda)
     stopper, stop = EarlyStopping(patience=opt.patience, min_delta=opt.min_delta), False
     LOGGER.info(
@@ -182,15 +179,15 @@ def train(opt,device):
         mem = "%.3gG" % (torch.cuda.memory_reserved() / 1e9 if torch.cuda.is_available() else 0)  # (GB)
         s = f"{f'{epoch + 1}/{epochs}':>10}{mem:>10}{cl:>12.3g}{sl:>12.3g}{tvl:>12.3g}{total_loss:>12.3g}"
         LOGGER.info(s)
-        fitness = total_loss #2.08
+        fitness = total_loss
 
         # Scheduler
         scheduler.step()
-        stop = stopper(epoch=epoch, fitness=total_loss)  # early stop check
+        stop = stopper(start_epoch=start_epoch, epoch=epoch,  fitness=total_loss)  # early stop check
         # Log metrics
         if RANK in {-1, 0}:
             # Best fitness
-            if epoch ==0 :
+            if epoch ==0 or epoch == start_epoch:
                 best_fitness = fitness # Initialize best_fitness
             if fitness <= best_fitness - opt.min_delta:
                 best_fitness = fitness
@@ -204,7 +201,7 @@ def train(opt,device):
             }  # learning rate
             logger.log_metrics(metrics, epoch)
 
-            if epoch != 0 and epoch % 20 == 0:
+            if epoch != 0 and epoch % 10 == 0:
                 img = postprocess(generated_image)
                 img.save(imgdir / f'train-{epoch}-step.jpg')
                 logger.log_images(path=imgdir, epoch=epoch)
@@ -220,7 +217,7 @@ def train(opt,device):
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
                     "scheduler": scheduler.state_dict(),
-                    "generated_image": generated_image,
+                    "generated_image": generated_image.requires_grad_(True),
                     "opt": vars(opt),
                     "date": datetime.now().isoformat(),
                 }
@@ -255,7 +252,7 @@ def parse_opt(known=False):
     parser.add_argument("--loss_weight", default=[1,10,1e-1], help="content_layers")
 
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument("--weights", nargs="+", type=str, default="",
+    parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "runs/train-cls/exp23/weights/last.pt",
                         help="model.pt path(s)")
     parser.add_argument("--source", type=str, default=ROOT / "data/images", help="file/dir")
     parser.add_argument("--epochs", type=int, default=500, help="total training epochs")
@@ -273,7 +270,7 @@ def parse_opt(known=False):
     parser.add_argument("--decay", type=float, default=5e-5, help="weight decay")
     parser.add_argument("--batch-size", type=int, default=1, help="batch size")
     parser.add_argument("--patience", type=int, default=50, help="EarlyStopping patience (epochs without improvement)")
-    parser.add_argument("--min-delta", type=float, default=0.001,
+    parser.add_argument("--min-delta", type=float, default=0.0005,
                         help="EarlyStopping Minimum Delta (epochs without improvement)")
     parser.add_argument("--verbose", action="store_true", help="Verbose mode")
     parser.add_argument("--seed", type=int, default=0, help="Global training seed")
